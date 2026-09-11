@@ -1,6 +1,8 @@
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
 
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
 const DEMO_CATEGORIES = [
   { label: "Food", value: "₹4,320", width: 70, brass: false },
   { label: "Rent", value: "₹9,000", width: 100, brass: false },
@@ -47,11 +49,17 @@ export default function Statements() {
     formData.append("statement", file);
 
     try {
-      const res = await fetch("/api/statements/upload", {
+      const res = await fetch(`${API_BASE}/api/statements/upload`, {
         method: "POST",
         body: formData,
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Server response was not JSON. Is the backend running?");
+      }
       if (!res.ok) throw new Error(data.error || "Upload failed");
       setResult(data);
     } catch (e) {

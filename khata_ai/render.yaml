@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: apna-khata-backend
+    runtime: node
+    rootDir: khata_ai/backend
+    buildCommand: npm install
+    startCommand: npm start
+    region: singapore
+    envVars:
+      - key: PORT
+        value: 5000
+
+  - type: web
+    name: apna-khata-frontend
+    runtime: static
+    rootDir: khata_ai/frontend
+    buildCommand: npm install && npm run build
+    staticPublishing: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://apna-khata-5rlb.onrender.com
