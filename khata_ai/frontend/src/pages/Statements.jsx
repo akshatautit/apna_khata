@@ -3,21 +3,34 @@ import { Link } from "react-router-dom";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
-const DEMO_CATEGORIES = [
-  { label: "Food", value: "₹4,320", width: 70, brass: false },
-  { label: "Rent", value: "₹9,000", width: 100, brass: false },
-  { label: "Shopping", value: "₹2,890", width: 40, brass: true },
-  { label: "Travel", value: "₹1,240", width: 20, brass: true },
-  { label: "Bills", value: "₹1,200", width: 14, brass: false },
-];
+const CAT_STYLES = {
+  Food: { dot: "#E8703A", pill: "#FBEDE4" },
+  Grocery: { dot: "#52A05E", pill: "#E7F3E9" },
+  Transport: { dot: "#3E7FB5", pill: "#E6F0F8" },
+  "Bills & Utilities": { dot: "#B08A2E", pill: "#F7F0DE" },
+  Entertainment: { dot: "#8E5BB5", pill: "#F0E7F8" },
+  Shopping: { dot: "#C05A7E", pill: "#F9E8EF" },
+  Health: { dot: "#3E8E8E", pill: "#E4F2F2" },
+  Rent: { dot: "#7A6A5A", pill: "#F0ECE6" },
+  Salary: { dot: "#4E7A3A", pill: "#EAF3E3" },
+  Transfer: { dot: "#7A7FA0", pill: "#ECEDF4" },
+  ATM: { dot: "#5A5A5A", pill: "#ECECEC" },
+  Other: { dot: "#9AA0A6", pill: "#F0F1F2" },
+};
 
-const DEMO_TXN = [
-  { date: "28 Aug", merchant: "Zomato", category: "Food", amount: "−₹420", type: "debit" },
-  { date: "25 Aug", merchant: "Netflix", category: "Subscription", amount: "−₹199", type: "debit" },
-  { date: "20 Aug", merchant: "Salary Credit", category: "Income", amount: "+₹32,000", type: "credit" },
-  { date: "14 Aug", merchant: "Myntra", category: "Shopping", amount: "−₹1,850", type: "debit" },
-  { date: "1 Aug", merchant: "House Rent", category: "Rent", amount: "−₹9,000", type: "debit" },
-];
+function catStyle(name) {
+  return CAT_STYLES[name] || CAT_STYLES.Other;
+}
+
+function formatINR(amount) {
+  return (
+    "₹" +
+    Number(amount || 0).toLocaleString("en-IN", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
+  );
+}
 
 export default function Statements() {
   const [file, setFile] = useState(null);
@@ -25,19 +38,28 @@ export default function Statements() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
+  const [activeCat, setActiveCat] = useState(null);
   const fileInputRef = useRef(null);
 
   function handleFile(selected) {
     const f = selected?.[0];
     if (!f) return;
     if (f.type !== "application/pdf") {
-      setError("Sirf PDF file select karo.");
+      setError("Please select a PDF file.");
       setFile(null);
       return;
     }
     setError("");
     setResult(null);
     setFile(f);
+  }
+
+  function clearAll() {
+    setFile(null);
+    setResult(null);
+    setError("");
+    setActiveCat(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function handleUpload() {
@@ -73,12 +95,12 @@ export default function Statements() {
     <div className="view">
       <div className="topbar">
         <div className="page-title">Statements</div>
-        <div className="page-note">August 2026</div>
+        <div className="page-note">Upload a PDF to analyse your spending</div>
       </div>
 
       <div className="stmt-body">
         <div
-          className={`dropzone ${dragOver ? "over" : ""}`}
+          className={`dropzone ${dragOver ? "over" : ""} ${file ? "has-file" : ""}`}
           onDragOver={(e) => {
             e.preventDefault();
             setDragOver(true);
@@ -98,110 +120,228 @@ export default function Statements() {
             hidden
             onChange={(e) => handleFile(e.target.files)}
           />
-          <div className="dropzone-title">PhonePe statement upload karo</div>
-          <div className="dropzone-sub">
-            PDF drag karo yaha, ya neeche se select karo
-          </div>
           {file ? (
-            <div className="file-chip">📄 {file.name}</div>
+            <div className="dz-picked">
+              <div className="dz-check">✓</div>
+              <div className="dz-filename">{file.name}</div>
+              <div className="dz-filemeta">
+                {(file.size / 1024 / 1024).toFixed(2)} MB · ready to upload
+              </div>
+            </div>
           ) : (
-            <button type="button" className="upload-btn">
-              Choose file
-            </button>
+            <>
+              <div className="dz-icon">
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="17 8 12 3 7 8" />
+                  <line x1="12" y1="3" x2="12" y2="15" />
+                </svg>
+              </div>
+              <div className="dropzone-title">Upload your statement</div>
+              <div className="dropzone-sub">Drag &amp; drop a PDF here, or click to choose a file</div>
+              <button type="button" className="upload-btn">
+                Choose file
+              </button>
+            </>
           )}
         </div>
 
         {file && !result && (
-          <button
-            type="button"
-            className="upload-btn"
-            onClick={handleUpload}
-            disabled={loading}
-            style={{ marginBottom: 20, display: "block" }}
-          >
-            {loading ? "⏳ Extract ho raha hai..." : "Upload & Extract"}
-          </button>
+          <div className="upload-actions">
+            <button
+              type="button"
+              className="upload-btn primary"
+              onClick={handleUpload}
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <span className="spin">⏳</span> Extracting…
+                </>
+              ) : (
+                "Upload & Extract"
+              )}
+            </button>
+            <button type="button" className="upload-btn ghost" onClick={clearAll}>
+              Remove
+            </button>
+          </div>
         )}
 
         {error && <div className="alert error">{error}</div>}
 
         {result && (
-          <div className="panel">
-            <div className="panel-title">
-              Extracted Raw Text
-              <span
-                className="tag"
-                style={{ marginLeft: 10, verticalAlign: "middle" }}
-              >
-                {result.fileName} · {result.totalPages} page(s)
-              </span>
+          <div className="result-bar">
+            <div className="result-info">
+              <div className="result-file">{result.fileName}</div>
+              <div className="result-meta">
+                {result.totalPages} page(s) · {result.summary.transactionCount} transactions
+              </div>
             </div>
-            <pre className="raw-text">{result.rawText}</pre>
+            <button
+              type="button"
+              className="clear-all-btn"
+              title="Delete this statement and start over"
+              onClick={clearAll}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+              Clear statement
+            </button>
           </div>
         )}
 
-        <div className="stat-row">
-          <div className="stat-card">
-            <div className="stat-label">Total Spent</div>
-            <div className="stat-value debit">₹18,650</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Total Received</div>
-            <div className="stat-value credit">₹32,000</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-label">Ledger Score</div>
-            <div className="stat-value">74 / 100</div>
-          </div>
-        </div>
-
-        <div className="panel">
-          <div className="panel-title">Category Breakdown</div>
-          {DEMO_CATEGORIES.map((c) => (
-            <div className="bar-row" key={c.label}>
-              <div className="bar-label">{c.label}</div>
-              <div className="bar-track">
-                <div
-                  className={`bar-fill ${c.brass ? "brass" : ""}`}
-                  style={{ width: `${c.width}%` }}
-                ></div>
-              </div>
-              <div className="bar-amt">{c.value}</div>
+        {result && (
+          <div className="stat-row">
+            <div className="stat-card accent-debit">
+              <div className="stat-label">Total Spent</div>
+              <div className="stat-value debit">{formatINR(result.summary.totalSpent)}</div>
+              <div className="stat-hint">outgoing</div>
             </div>
-          ))}
-        </div>
-
-        <div className="panel">
-          <div className="panel-title">Transactions</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Merchant</th>
-                <th>Category</th>
-                <th style={{ textAlign: "right" }}>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {DEMO_TXN.map((t, i) => (
-                <tr key={i}>
-                  <td>{t.date}</td>
-                  <td>{t.merchant}</td>
-                  <td>
-                    <span className="tag">{t.category}</span>
-                  </td>
-                  <td className={`amt ${t.type}`}>{t.amount}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div className="ask-ai">
-            <span>Is data pe koi sawaal poochna hai?</span>
-            <Link to="/chat">
-              <button type="button">Ask AI →</button>
-            </Link>
+            <div className="stat-card accent-credit">
+              <div className="stat-label">Total Received</div>
+              <div className="stat-value credit">{formatINR(result.summary.totalReceived)}</div>
+              <div className="stat-hint">incoming</div>
+            </div>
+            <div className="stat-card accent-net">
+              <div className="stat-label">Net Balance</div>
+              <div className={`stat-value ${result.summary.net >= 0 ? "credit" : "debit"}`}>
+                {formatINR(result.summary.net)}
+              </div>
+              <div className="stat-hint">{result.summary.net >= 0 ? "in surplus" : "in deficit"}</div>
+            </div>
+            <div className="stat-card accent-score">
+              <div className="stat-label">Ledger Score</div>
+              <div className="stat-value">{result.summary.ledgerScore} <span className="stat-unit">/100</span></div>
+              <div className="stat-hint">savings health</div>
+            </div>
           </div>
-        </div>
+        )}
+
+        {result && (
+          <div className="panel">
+            <div className="panel-title">
+              Category Breakdown
+              {activeCat && (
+                <button
+                  type="button"
+                  className="clear-btn"
+                  onClick={() => setActiveCat(null)}
+                  title="Show all categories"
+                  style={{ marginLeft: 10 }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                  Clear filter
+                </button>
+              )}
+            </div>
+            {result.summary.categories.length === 0 ? (
+              <div className="page-note">No transactions found.</div>
+            ) : (
+              <table className="cat-table">
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th style={{ textAlign: "right" }}>Debit (spend)</th>
+                    <th style={{ textAlign: "right" }}>Credit (received)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {result.summary.categories.map((c) => (
+                    <tr
+                      key={c.name}
+                      className={`cat-row ${activeCat === c.name ? "active" : ""}`}
+                      onClick={() => setActiveCat(activeCat === c.name ? null : c.name)}
+                    >
+                      <td>
+                        <span className="cat-dot" style={{ background: catStyle(c.name).dot }} />
+                        {c.name}
+                        <span className="cat-count">{c.count}</span>
+                      </td>
+                      <td className={`amt ${c.spent > 0 ? "debit" : ""}`}>
+                        {c.spent > 0 ? formatINR(c.spent) : "—"}
+                      </td>
+                      <td className={`amt ${c.received > 0 ? "credit" : ""}`}>
+                        {c.received > 0 ? formatINR(c.received) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            <div className="category-hint">
+              Click a category to filter the <b>Transactions</b> list below. Click again to show all.
+            </div>
+          </div>
+        )}
+
+        {result && (
+          <div className="panel">
+            <div className="panel-title">
+              Transactions{activeCat ? ` — ${activeCat}` : ""}
+              {activeCat && (
+                <span className="category-badge">
+                  <span className="cat-dot" style={{ background: catStyle(activeCat).dot }} />
+                  filtered view
+                </span>
+              )}
+            </div>
+            {(() => {
+              const filtered = activeCat
+                ? result.transactions.filter((t) => t.category === activeCat)
+                : result.transactions;
+              if (filtered.length === 0) {
+                return <div className="page-note">No transactions in this category.</div>;
+              }
+              return (
+                <div className="table-wrap">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Merchant</th>
+                        <th>Category</th>
+                        <th style={{ textAlign: "right" }}>Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtered.slice(0, 50).map((t) => {
+                        const style = catStyle(t.category);
+                        return (
+                          <tr key={`${t.sno}-${t.merchant}`}>
+                            <td className="mono">{t.date}</td>
+                            <td className="merchant">{t.merchant}</td>
+                            <td>
+                              <span className="cat-pill" style={{ color: style.dot, background: style.pill }}>
+                                <span className="cat-dot" style={{ background: style.dot }} />
+                                {t.category}
+                              </span>
+                            </td>
+                            <td className={`amt ${t.type}`}>
+                              {t.type === "credit" ? "+" : "−"}
+                              {formatINR(t.amount)}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              );
+            })()}
+            <div className="ask-ai">
+              <span>Have a question about this data?</span>
+              <Link to="/chat">
+                <button type="button">Ask AI →</button>
+              </Link>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

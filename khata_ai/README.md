@@ -128,7 +128,134 @@ return { text: result.text, pages: result.total };
 - **Koi structure/parsing nahi** — sirf raw dump. Ye kisi bhi text-based PDF ke liye kaam
   karta hai (PhonePe/bank dono); `image-only (scanned)` PDF pe empty/garbage aayega
 
----
+### 9. Backend — Structured transaction parsing
+File: `backend/src/services/statementParser.js`
+
+Raw text ko structured transactions me convert karta hai:
+
+```js
+const transactions = parseTransactions(rawText);   // [{sno, date, merchant, category, type, amount, balance}]
+const summary      = buildSummary(transactions);   // {totalSpent, totalReceived, net, categories[], ledgerScore}
+```
+
+**How it works (statementParser):**
+- Har transaction ek block hota hai: `SNo DD.MM.YYYY remark...` lines, antim line
+  amounts (`withdrawal balance` ya `deposit balance`)
+- Regular expresssions se amounts nikalta hai (balance = last figure)
+- **Credit/debit detection**: balance delta se — `balance[i] - balance[i-1]` agar amount
+  se match karta hai, delta positive = credit (money in), negative = debit (money out)
+- **Merchant**: UPI remarks me `UPI/NAME/...` pattern se naam nikalta hai
+- **Categories**: keyword matching (Zomato/Swiggy → Food, Ola/Uber → Transport, etc.) —
+  sirf merchant + normal words pe, taaki UPI reference hashes me random substrings
+  (jaise "cab") match na karein
+- **Ledger score**: savings-rate based formula (income - spend) / income
+
+### 10. Controller response — ab structured data bhi
+File: `backend/src/controllers/statement.controller.js`
+
+```js
+const transactions = parseTransactions(text);
+const summary = buildSummary(transactions);
+
+res.json({
+  message, fileName, totalPages, rawText,
+  transactions,   // [{sno, date, merchant, category, type, amount, balance}]
+  summary,        // {totalSpent, totalReceived, net, categories, ledgerScore}
+});
+```
+
+### 11. Hybrid AI Categorization (Gemini Free Tier)
+File: `backend/src/services/aiCategorizer.js` + `backend/src/controllers/statement.controller.js`
+
+**Why hybrid?** Keyword rules are instant/free but miss many merchants. Gemini fills gaps only for "Other" merchants — one batched call per upload, free tier (≈1,500 req/day, 15–20 RPM).
+
+**Flow (in controller `uploadStatement`):**
+
+```js
+// 1. Parse transactions with keyword rules first
+const transactions = parseTransactions(text);
+
+// 2. Collect unique "Other" merchants
+const unknownMerchants = [...new Set(
+  transactions.filter(t => t.category === "Other").map(t => t.merchant)
+)];
+
+// 3. If any unknown, call Gemini ONCE with all of them
+if (unknownMerchants.length > 0) {
+  const map = await aiCategorize(unknownMerchants);  // returns {merchant: category} or null
+  if (map) {
+    for (const t of transactions) {
+      if (t.category === "Other" && map[t.merchant] && map[t.merchant] !== "Other") {
+        t.category = map[t.merchant];
+      }
+    }
+  }
+}
+
+// 4. Build summary with AI-enhanced categories
+const summary = buildSummary(transactions);
+```
+
+**`aiCategorize` service (`backend/src/services/aiCategorizer.js`):**
+
+```js
+async function aiCategorize(merchants) {
+  if (!GEMINI_API_KEY || !merchants.length) return null;
+  try {
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+    const prompt = [
+      "You are a bank statement spending categorizer.",
+      `Classify each merchant into exactly ONE of: ${CATEGORIES.join(", ")}.`,
+      "Return ONLY a JSON object mapping each exact merchant name to a category. No extra text.",
+      "Merchants:",
+      ...merchants.map(m => `- ${m}`),
+    ].join("\n");
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-goog-api-key": GEMINI_API_KEY },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 8192,
+          responseMimeType: "application/json",  // forces valid JSON output
+        },
+      }),
+    });
+
+    if (!res.ok) return null;  // quota/key error → silent fallback
+
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const parsed = parseAiJson(text);  // strips fences, extracts JSON object
+    if (!parsed) return null;
+
+    // Validate categories against known list
+    const map = {};
+    for (const m of merchants) {
+      const c = parsed[m];
+      map[m] = CATEGORIES.includes(c) ? c : "Other";
+    }
+    return map;
+  } catch {
+    return null;  // never breaks upload
+  }
+}
+```
+
+**Key design choices:**
+- `model: gemini-3.6-flash` (2.0/2.5 flash retired/404 in 2026)
+- Key in header `X-goog-api-key` (not URL param)
+- `responseMimeType: "application/json"` + `maxOutputTokens: 8192` prevents `MAX_TOKENS` truncation
+- `parseAiJson()` handles fenced/plain/extra-text JSON robustly
+- **Fail-safe**: any error (quota, network, bad key) → returns `null` → controller keeps keyword result
+- 1 PDF = 1 AI request (batched); PhonePe 37 txns → ~15 "Other" → 1 call
+
+**Quota notes (free tier, 2026):**
+- ~15–20 RPM / 1,500 RPD (varies by model/account)
+- Keys must be created in **AI Studio** (restricted); Google Cloud console keys may show "free limit 0"
+- If exhausted → keyword-only still works; upgrade or wait for reset
+- On Render, set `GEMINI_API_KEY` (and optional `GEMINI_MODEL`) in the **dashboard Environment** tab for the backend service — `backend/.env` is gitignored and not deployed
 
 ## Confusion-clearing: 2 alag "parse" hain — inhe mix mat karna
 
@@ -253,7 +380,20 @@ multipart/form-data, field name = `statement`, PDF only, max 10MB.
   "message": "PDF parsed successfully",
   "fileName": "phonepe_statement.pdf",
   "totalPages": 10,
-  "rawText": "...raw extracted text..."
+  "rawText": "...raw extracted text...",
+  "transactions": [
+    { "sno": 1, "date": "18/04/2026", "merchant": "Fund transfer", "category": "Salary", "type": "credit", "amount": 21421, "balance": 21421 }
+  ],
+  "summary": {
+    "totalSpent": 43162.74,
+    "totalReceived": 54624,
+    "net": 11461.26,
+    "ledgerScore": 21,
+    "transactionCount": 126,
+    "categories": [
+      { "name": "Food", "spent": 2324.9, "count": 15, "pct": 6 }
+    ]
+  }
 }
 ```
 
@@ -262,7 +402,7 @@ Health check → `{ "message": "Khaata AI backend is running!" }`
 
 ## Roadmap
 
-- Structured transaction parsing (date/merchant/amount) from `rawText`
+- Structured transaction parsing (date/merchant/amount) from `rawText` ✅
 - MongoDB models (statements, users) + Mongoose
 - JWT auth + bcrypt
 - Gemini API integration for the chatbot

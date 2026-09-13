@@ -3,32 +3,32 @@ import { useState } from "react";
 const SEED = [
   {
     role: "bot",
-    text: "Hi Akshata — poocho kuch bhi apne spending ke baare mein, ya koi statement upload karo Statements tab se.",
+    text: "Hi Akshata — ask me anything about your spending, or upload a statement from the Statements tab.",
   },
   {
     role: "user",
-    text: "August mein sabse zyada kharch kahan hua?",
+    text: "Where did I spend the most in August?",
   },
   {
     role: "bot",
     text: (
       <>
-        Is mahine tumne sabse zyada <b>Food &amp; Delivery</b> pe kharch kiya —{" "}
-        <span className="amt">₹4,320</span>, total spend{" "}
-        <span className="amt">₹18,650</span> ka 23%. Zomato akela{" "}
-        <span className="amt">₹2,100</span> tha.
+        You spent the most on <b>Food &amp; Delivery</b> —{" "}
+        <span className="amt">₹4,320</span>, which is 23% of your total spend{" "}
+        <span className="amt">₹18,650</span>. Zomato alone was{" "}
+        <span className="amt">₹2,100</span>.
       </>
     ),
   },
   {
     role: "user",
-    text: "rent kitna gaya?",
+    text: "How much was rent?",
   },
   {
     role: "bot",
     text: (
       <>
-        Rent: <span className="amt">₹9,000</span>, 1st August ko debit hua.
+        Rent: <span className="amt">₹9,000</span>, debited on 1 August.
       </>
     ),
   },
@@ -71,7 +71,7 @@ export default function Chat() {
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Apna sawaal likho..."
+          placeholder="Type your question…"
         />
         <button type="submit" className="icon-btn send-btn" disabled={!input.trim()}>
           ➤

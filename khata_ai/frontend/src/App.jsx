@@ -14,7 +14,7 @@ function Sidebar() {
     <aside className="sidebar">
       <div className="brand">
         <div className="brand-mark">Khaata AI</div>
-        <div className="brand-sub">samajhdaar kharcha</div>
+        <div className="brand-sub">smart money insights</div>
       </div>
       <nav className="nav">
         {links.map((l) => (
