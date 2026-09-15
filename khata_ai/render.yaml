@@ -18,4 +18,4 @@ services:
     staticPublishing: dist
     envVars:
       - key: VITE_API_URL
-        value: https://apna-khata-5rlb.onrender.com
+        value: https://apna-khata-backend.onrender.com
