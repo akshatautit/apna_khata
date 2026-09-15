@@ -4,6 +4,16 @@ Khaata AI ek Full-Stack app hai: **React (Vite) frontend** + **Express backend**
 Abhi ka working feature: **PhonePe/bank PDF statement upload karke uski raw text
 extraction** (structured parsing, database, AI — aage ke steps).
 
+## 📚 Documentation
+
+| Doc | Contents |
+| --- | --- |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Tech stack, folder layout, request & parsing pipeline, AI flow, storage |
+| [docs/API.md](docs/API.md) | Every endpoint with request/response examples + error codes |
+| [docs/SETUP.md](docs/SETUP.md) | Local dev setup, env vars, test PDFs, troubleshooting |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Render deploy, env vars, log lines to verify, caveats |
+| [docs/FEATURES.md](docs/FEATURES.md) | What the app currently does + roadmap |
+
 ---
 
 ## Architecture — PDF data ka poora flow (step by step)

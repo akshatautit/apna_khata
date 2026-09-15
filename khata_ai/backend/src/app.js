@@ -9,6 +9,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Simple request logger — helps debug on Render (visible in Logs tab)
+app.use((req, _res, next) => {
+  console.log(`[req] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // Mount all /api routes
 app.use("/api", apiRouter);
 

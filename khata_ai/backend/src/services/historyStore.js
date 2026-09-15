@@ -40,6 +40,7 @@ function addEntry({ fileName, totalPages, transactionCount, summary, transaction
   const entries = readAll();
   entries.push(entry);
   writeAll(entries);
+  console.log(`[history] added entry ${entry.id} | total entries: ${entries.length}`);
   return entry;
 }
 

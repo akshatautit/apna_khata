@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { Link } from "react-router-dom";
+import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -39,6 +40,7 @@ export default function Statements() {
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
   const [activeCat, setActiveCat] = useState(null);
+  const [query, setQuery] = useState("");
   const fileInputRef = useRef(null);
 
   function handleFile(selected) {
@@ -59,6 +61,7 @@ export default function Statements() {
     setResult(null);
     setError("");
     setActiveCat(null);
+    setQuery("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -71,21 +74,15 @@ export default function Statements() {
     formData.append("statement", file);
 
     try {
-      const res = await fetch(`${API_BASE}/api/statements/upload`, {
-        method: "POST",
-        body: formData,
-      });
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error("Server response was not JSON. Is the backend running?");
-      }
-      if (!res.ok) throw new Error(data.error || "Upload failed");
-      setResult(data);
+      const res = await axios.post(
+        `${API_BASE}/api/statements/upload`,
+        formData
+      );
+      console.log("[upload] success:", res.data.fileName, "| txns:", res.data.summary.transactionCount);
+      setResult(res.data);
     } catch (e) {
-      setError(e.message);
+      console.error("[upload] failed:", e.response?.data?.error || e.message);
+      setError(e.response?.data?.error || "Server response was not JSON. Is the backend running?");
     } finally {
       setLoading(false);
     }
@@ -275,28 +272,83 @@ export default function Statements() {
               </table>
             )}
             <div className="category-hint">
-              Click a category to filter the <b>Transactions</b> list below. Click again to show all.
+              Click a category to see its <b>transactions</b> below. Click it again (or the ✕) to close.
             </div>
           </div>
         )}
 
         {result && (
+          <div className="search-bar">
+            <svg className="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              className="search-input"
+              placeholder="Search transactions (merchant, category, date)…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query && (
+              <button
+                type="button"
+                className="clear-btn"
+                onClick={() => setQuery("")}
+                title="Clear search"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
+        {result && (activeCat || query.trim()) && (
           <div className="panel">
             <div className="panel-title">
-              Transactions{activeCat ? ` — ${activeCat}` : ""}
+              Transactions
               {activeCat && (
                 <span className="category-badge">
                   <span className="cat-dot" style={{ background: catStyle(activeCat).dot }} />
-                  filtered view
+                  {activeCat}
                 </span>
               )}
+              {query.trim() && (
+                <span className="category-badge">
+                  matches "{query.trim().toLowerCase()}"
+                </span>
+              )}
+              <button
+                type="button"
+                className="clear-btn"
+                onClick={() => { setActiveCat(null); setQuery(""); }}
+                title="Clear filters"
+                style={{ marginLeft: "auto" }}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+                Clear filter
+              </button>
             </div>
             {(() => {
-              const filtered = activeCat
-                ? result.transactions.filter((t) => t.category === activeCat)
-                : result.transactions;
+              const q = query.trim().toLowerCase();
+              const filtered = result.transactions.filter((t) => {
+                const catMatch = activeCat ? t.category === activeCat : true;
+                const qMatch = q
+                  ? t.merchant.toLowerCase().includes(q) ||
+                    t.category.toLowerCase().includes(q) ||
+                    (t.date || "").includes(q)
+                  : true;
+                return catMatch && qMatch;
+              });
               if (filtered.length === 0) {
-                return <div className="page-note">No transactions in this category.</div>;
+                return <div className="page-note">No matching transactions found.</div>;
               }
               return (
                 <div className="table-wrap">

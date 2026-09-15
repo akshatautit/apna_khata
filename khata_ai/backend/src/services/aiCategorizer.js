@@ -1,5 +1,12 @@
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+const axios = require("axios");
+
+const GEMINI_API_KEY =
+  process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
 const MODEL = process.env.GEMINI_MODEL || "gemini-3.6-flash";
+
+console.log(
+  `[ai] key=${GEMINI_API_KEY ? "present" : "missing"} model=${MODEL}`
+);
 
 const CATEGORIES = [
   "Food",
@@ -48,36 +55,44 @@ async function aiCategorize(merchants) {
       ...merchants.map((m) => `- ${m}`),
     ].join("\n");
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-goog-api-key": GEMINI_API_KEY,
-      },
-      body: JSON.stringify({
+    const res = await axios.post(
+      url,
+      {
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
           temperature: 0.1,
           maxOutputTokens: 8192,
           responseMimeType: "application/json",
         },
-      }),
-    });
+      },
+      {
+        headers: {
+          "Content-Type": "application/json",
+          "X-goog-api-key": GEMINI_API_KEY,
+        },
+      }
+    );
 
-    if (!res.ok) return null;
-
-    const data = await res.json();
+    const data = res.data;
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || "";
     const parsed = parseAiJson(text);
-    if (!parsed) return null;
+    if (!parsed) {
+      console.error("[ai] response was not valid JSON → fallback keywords");
+      return null;
+    }
 
+    console.log(`[ai] parsed ${Object.keys(parsed).length} merchant→category entries`);
     const map = {};
     for (const m of merchants) {
       const c = parsed[m];
       map[m] = CATEGORIES.includes(c) ? c : "Other";
     }
     return map;
-  } catch {
+  } catch (e) {
+    console.error(
+      `[ai] HTTP ${e.response?.status || "network"} → falling back to keywords:`,
+      e.message
+    );
     return null;
   }
 }

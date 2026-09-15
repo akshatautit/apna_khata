@@ -8,6 +8,9 @@ const { PDFParse } = require("pdf-parse");
 async function extractPdfText(buffer) {
   const parser = new PDFParse({ data: buffer });
   const result = await parser.getText();
+  console.log(
+    `[pdf] extracted ${result.text.length} chars | ${result.total} page(s)`
+  );
   return { text: result.text, pages: result.total };
 }
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import axios from "axios";
 
 const API_BASE = import.meta.env.VITE_API_URL || "";
 
@@ -36,9 +37,9 @@ export default function History() {
   const [openId, setOpenId] = useState(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/api/statements/history`)
-      .then((r) => r.json())
-      .then((d) => setEntries(d.entries || []))
+    axios
+      .get(`${API_BASE}/api/statements/history`)
+      .then((r) => setEntries(r.data.entries || []))
       .catch(() => setError("Could not load history."))
       .finally(() => setLoading(false));
   }, []);
