@@ -2,20 +2,28 @@ services:
   - type: web
     name: apna-khata-backend
     runtime: node
-    rootDir: khata_ai/backend
+    branch: current-app
+    rootDir: backend
     buildCommand: npm install
     startCommand: npm start
     region: singapore
     envVars:
       - key: PORT
         value: 5000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
 
   - type: web
     name: apna-khata-frontend
     runtime: static
-    rootDir: khata_ai/frontend
+    branch: current-app
+    rootDir: frontend
     buildCommand: npm install && npm run build
-    staticPublishing: dist
+    staticPublishPath: dist
     envVars:
       - key: VITE_API_URL
         value: https://apna-khata-backend.onrender.com
